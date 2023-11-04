@@ -37,25 +37,6 @@ heavy_cannonballs = []
 grapeshot_cooldown = 0
 cannonball_cooldown = 0
 heavy_cannonball_cooldown = 0
-grapeshot_image = pygame.image.load("grapeshot.png")
-grapeshot_image = pygame.transform.scale(grapeshot_image, (32, 32))
-
-cooldown_images = {
-    "cannonball": (cannonball_image, CANNONBALL_COOLDOWN),
-    "heavy_cannonball": (heavy_cannonball_image, HEAVY_CANNONBALL_COOLDOWN),
-    "grapeshot": (grapeshot_image, GRAPE_SHOT_COOLDOWN),
-}
-
-cooldown_timers = {key: 0 for key in cooldown_images}
-
-def draw_cooldown_images():
-    x = screen.get_width() - 200
-    y = screen.get_height() - 100
-    for key, (image, cooldown) in cooldown_images.items():
-        screen.blit(image, (x, y))
-        cooldown_text = font.render(f"{key.capitalize()} Cooldown: {cooldown_timers[key] // 1000}", True, (255, 255, 255))
-        screen.blit(cooldown_text, (x, y + 32))
-        x -= 100
 
 clock = pygame.time.Clock()
 running = True
@@ -118,10 +99,6 @@ while running:
     if grapeshot_cooldown > 0:
         grapeshot_cooldown -= 16
 
-    for key in cooldown_timers:
-        if cooldown_timers[key] > 0:
-            cooldown_timers[key] -= 16
-
     player_x = max(0, min(player_x, screen.get_width() - 64))
     player_y = max(0, min(player_y, screen.get_height() - 64))
 
@@ -148,13 +125,9 @@ while running:
     timer_text = font.render("Time: " + str(timer // 60), True, (255, 255, 255))
     screen.blit(timer_text, timer_rect)
 
-    draw_cooldown_images()
-
     rotated_player_image = pygame.transform.rotate(player_image, -player_angle)
     player_rect = rotated_player_image.get_rect(center=(player_x + 32, player_y + 32))
     screen.blit(rotated_player_image, player_rect.topleft)
-
-    draw_cooldown_images()
 
     pygame.display.flip()
 
