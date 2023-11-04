@@ -1,6 +1,7 @@
 import pygame
 import sys
 import math
+import random
 
 pygame.init()
 screen_info = pygame.display.Info()
@@ -14,6 +15,7 @@ GRAPE_SHOT_RADIUS = 100
 GRAPE_SHOT_COOLDOWN = 5000
 CANNONBALL_COOLDOWN = 1000
 HEAVY_CANNONBALL_COOLDOWN = 3000
+ENEMY_SPEED = 3
 
 font = pygame.font.Font(None, 36)
 timer_text = font.render("Time: 0", True, (255, 255, 255))
@@ -28,16 +30,25 @@ player_image = pygame.transform.scale(player_image, (64, 64))
 player_angle = 0
 cannonball_image = pygame.image.load("cannonball.png")
 heavy_cannonball_image = pygame.image.load("heavy_cannonball.png")
+enemy_image = pygame.image.load("enemy.png")
+enemy_image = pygame.transform.scale(enemy_image, (64, 64))
 
 player_x = screen.get_width() // 2 - 16
 player_y = screen.get_height() // 2 - 16
 
 cannonballs = []
 heavy_cannonballs = []
+heavy_cannonball_lifetime = 5000
+heavy_cannonball_timers = []
+enemies = []
 grapeshot_cooldown = 0
 cannonball_cooldown = 0
 heavy_cannonball_cooldown = 0
 
+enemy_spawn_interval = 1000
+enemy_spawn_timer = 0
+
+game_over = False
 clock = pygame.time.Clock()
 running = True
 timer = 0
@@ -81,6 +92,7 @@ while running:
         heavy_cannonball_y = player_y + 16
         angle = math.atan2(mouse_y - heavy_cannonball_y, mouse_x - heavy_cannonball_x)
         heavy_cannonballs.append([heavy_cannonball_x, heavy_cannonball_y, angle])
+        heavy_cannonball_timers.append(pygame.time.get_ticks())
         heavy_cannonball_cooldown = HEAVY_CANNONBALL_COOLDOWN
 
     if keys[pygame.K_q] and grapeshot_cooldown <= 0:
@@ -102,24 +114,63 @@ while running:
     player_x = max(0, min(player_x, screen.get_width() - 64))
     player_y = max(0, min(player_y, screen.get_height() - 64))
 
-    for cannon in cannonballs:
-        angle = cannon[2]
-        cannon[0] += CANNONBALL_SPEED * math.cos(angle)
-        cannon[1] += CANNONBALL_SPEED * math.sin(angle)
-        screen.blit(cannonball_image, (cannon[0], cannon[1]))
-        if (
-            cannon[0] < 0
-            or cannon[0] > screen.get_width()
-            or cannon[1] < 0
-            or cannon[1] > screen.get_height()
-        ):
-            cannonballs.remove(cannon)
+    current_time = pygame.time.get_ticks()
 
-    for heavy_cannon in heavy_cannonballs:
-        angle = heavy_cannon[2]
-        heavy_cannon[0] += HEAVY_CANNONBALL_SPEED * math.cos(angle)
-        heavy_cannon[1] += HEAVY_CANNONBALL_SPEED * math.sin(angle)
-        screen.blit(heavy_cannonball_image, (heavy_cannon[0], heavy_cannon[1]))
+    if current_time - enemy_spawn_timer >= enemy_spawn_interval:
+        spawn_side = random.choice(["top", "bottom", "left", "right"])
+        if spawn_side == "top":
+            enemy_x = random.randint(0, screen.get_width() - 64)
+            enemy_y = -64
+        elif spawn_side == "bottom":
+            enemy_x = random.randint(0, screen.get_width() - 64)
+            enemy_y = screen.get_height()
+        elif spawn_side == "left":
+            enemy_x = -64
+            enemy_y = random.randint(0, screen.get_height() - 64)
+        elif spawn_side == "right":
+            enemy_x = screen.get_width()
+            enemy_y = random.randint(0, screen.get_height() - 64)
+
+        angle = math.atan2(player_y - enemy_y, player_x - enemy_x)
+        enemies.append([enemy_x, enemy_y, angle])
+
+        enemy_spawn_interval = max(100, 1000 - 1.001**(timer*(5/3)))
+
+        enemy_spawn_timer = current_time
+
+    if not game_over:
+        for cannon in cannonballs:
+            angle = cannon[2]
+            cannon[0] += CANNONBALL_SPEED * math.cos(angle)
+            cannon[1] += CANNONBALL_SPEED * math.sin(angle)
+            screen.blit(cannonball_image, (cannon[0], cannon[1]))
+            if (
+                cannon[0] < 0
+                or cannon[0] > screen.get_width()
+                or cannon[1] < 0
+                or cannon[1] > screen.get_height()
+            ):
+                cannonballs.remove(cannon)
+
+        for i, heavy_cannon in enumerate(heavy_cannonballs):
+            angle = heavy_cannon[2]
+            heavy_cannon[0] += HEAVY_CANNONBALL_SPEED * math.cos(angle)
+            heavy_cannon[1] += HEAVY_CANNONBALL_SPEED * math.sin(angle)
+            screen.blit(heavy_cannonball_image, (heavy_cannon[0], heavy_cannon[1]))
+
+            if current_time - heavy_cannonball_timers[i] >= heavy_cannonball_lifetime:
+                heavy_cannonballs.pop(i)
+                heavy_cannonball_timers.pop(i)
+            else:
+                for enemy in enemies:
+                    if math.hypot(heavy_cannon[0] - enemy[0], heavy_cannon[1] - enemy[1]) < 32:
+                        enemies.remove(enemy)
+
+        for enemy in enemies:
+            angle = enemy[2]
+            enemy[0] += ENEMY_SPEED * math.cos(angle)
+            enemy[1] += ENEMY_SPEED * math.sin(angle)
+            screen.blit(enemy_image, (enemy[0], enemy[1]))
 
     timer += 1
     timer_text = font.render("Time: " + str(timer // 60), True, (255, 255, 255))
@@ -131,5 +182,27 @@ while running:
 
     pygame.display.flip()
 
-pygame.quit()
-sys.exit()
+    if not game_over:
+        for cannon in cannonballs:
+            for enemy in enemies:
+                if math.hypot(cannon[0] - enemy[0], cannon[1] - enemy[1]) < 32:
+                    cannonballs.remove(cannon)
+                    enemies.remove(enemy)
+
+        for enemy in enemies:
+            if math.hypot(player_x + 32 - enemy[0], player_y + 32 - enemy[1]) < 32:
+                game_over = True
+                break
+
+while running:
+    if game_over:
+        screen.fill(GREY)
+        game_over_text = font.render("Game Over", True, (255, 0, 0))
+        game_over_rect = game_over_text.get_rect(center=(screen.get_width() // 2, screen.get_height() // 2 - 50))
+        screen.blit(game_over_text, game_over_rect)
+        final_time_text = font.render("Time Survived: " + str(timer // 60) + " seconds", True, (255, 0, 0))
+        final_time_rect = final_time_text.get_rect(center=(screen.get_width() // 2, screen.get_height() // 2 + 50))
+        screen.blit(final_time_text, final_time_rect)
+        pygame.display.flip()
+        pygame.quit()
+        sys.exit()
