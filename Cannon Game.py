@@ -3,6 +3,12 @@ import sys
 import math
 import random
 
+def render_text(surface, text, font, color, position):
+    text_render = font.render(text, True, color)
+    text_rect = text_render.get_rect()
+    text_rect.center = position
+    surface.blit(text_render, text_rect)
+
 def title_screen(screen):
     title_font = pygame.font.Font("Kotra-w17WP.ttf", 144)
     button_font = pygame.font.Font("EmotionalBaggage-ZVdXK.ttf", 72)
@@ -25,13 +31,38 @@ def title_screen(screen):
         screen.blit(background_image, (0, 0))
         screen.blit(title_text, title_rect)
         screen.blit(play_button_text, play_button_rect)
+
+        game_rules_font = pygame.font.Font(None, 42)
+        rules_text = [
+            "Rules",
+            "",
+            "1. The objective of the game is to survive for as long as possible by controlling a player character",
+            "   and using various cannonballs to defeat incoming enemies.",
+            "",
+            "2. The player has the ability to move the character with the WASD keys, fire cannonballs with the left",
+            "   mouse button, and launch heavy cannonballs with the right mouse button. Additionally, they can use",
+            "   a grape shot attack by pressing the Q key. Enemies will spawn from various directions and must be",
+            "   defeated to continue surviving.",
+            "",
+            "3. Have fun playing 'Sailor's Odyssey' and test your skills in this action-packed cannon shooting game!"
+        ]
+        text_position = (screen.get_width() // 2, int(screen.get_height() * 5 / 8))
+        for line in rules_text:
+            render_text(screen, line, game_rules_font, (255, 255, 255), text_position)
+            text_position = (text_position[0], text_position[1] + 36)
+
         pygame.display.flip()
 
 def initialize_game():
     pygame.init()
+    pygame.mixer.init()
     screen_info = pygame.display.Info()
     screen = pygame.display.set_mode((screen_info.current_w, screen_info.current_h), pygame.FULLSCREEN)
     pygame.display.set_caption("Cannon Game")
+
+    pygame.mixer.music.load("background_music.mp3")
+    pygame.mixer.music.set_volume(0.5)
+    pygame.mixer.music.play(-1)
 
     PLAYER_SPEED = 5
     CANNONBALL_SPEED = 12
@@ -53,8 +84,15 @@ def initialize_game():
     player_angle = 0
     cannonball_image = pygame.image.load("cannonball.png")
     heavy_cannonball_image = pygame.image.load("heavy_cannonball.png")
-    enemy_image = pygame.image.load("enemy.png")
-    enemy_image = pygame.transform.scale(enemy_image, (64, 64))
+
+    enemy_images = [
+        pygame.image.load("enemy1.png"),
+        pygame.image.load("enemy2.png"),
+        pygame.image.load("enemy3.png")
+    ]
+
+    for i in range(len(enemy_images)):
+        enemy_images[i] = pygame.transform.scale(enemy_images[i], (64, 64))
 
     player_x = screen.get_width() // 2 - 16
     player_y = screen.get_height() // 2 - 16
@@ -96,15 +134,15 @@ def initialize_game():
             screen.fill((0, 0, 0))
             screen.blit(background_image, (0, 0))
             game_over_font = pygame.font.Font("Kotra-w17WP.ttf", 144)
-            game_over_text = game_over_font.render("Game Over", True, (164, 87, 41))
+            game_over_text = game_over_font.render("Game Over", True, (255, 0, 0))
             game_over_rect = game_over_text.get_rect(center=(screen.get_width() // 2, screen.get_height() // 2 - 50))
             screen.blit(game_over_text, game_over_rect)
-            final_time_font = pygame.font.Font("Kotra-w17WP.ttf", 144)
-            final_time_text = timer_font.render("Time Survived: " + str(elapsed_time) + " seconds", True, (164, 87, 41))
+            final_time_font = pygame.font.Font("Kotra-w17WP.ttf", 72)
+            final_time_text = final_time_font.render("Time Survived: " + str(elapsed_time) + " seconds", True, (164, 87, 41))
             final_time_rect = final_time_text.get_rect(center=(screen.get_width() // 2, screen.get_height() // 2 + 50))
             screen.blit(final_time_text, final_time_rect)
             try_again_button_font = pygame.font.Font("EmotionalBaggage-ZVdXK.ttf", 72)
-            try_again_text = font.render("Try Again", True, (255, 255, 255))
+            try_again_text = try_again_button_font.render("Try Again", True, (255, 255, 255))
             try_again_button_rect = try_again_text.get_rect(center=(screen.get_width() // 2, screen.get_height() // 2 + 150))
             screen.blit(try_again_text, try_again_button_rect)
             pygame.display.flip()
@@ -189,13 +227,20 @@ def initialize_game():
                 enemy_x = screen.get_width()
                 enemy_y = random.randint(0, screen.get_height() - 64)
 
+            enemy_image = random.choice(enemy_images)
             angle = math.atan2(player_y - enemy_y, player_x - enemy_x)
-
+            if spawn_side == "top" or spawn_side == "left":
+                enemy_image = pygame.transform.rotate(enemy_image, -math.degrees(angle))
+            else:
+                enemy_image = pygame.transform.rotate(enemy_image, math.degrees(angle))
+                enemy_image = pygame.transform.flip(enemy_image, True, False)
+                enemy_image = pygame.transform.flip(enemy_image, False, True)
+                enemy_image = pygame.transform.flip(enemy_image, True, False)
             enemy_speed = random.uniform(2, 4)
 
-            enemies.append([enemy_x, enemy_y, angle, enemy_speed])
+            enemies.append([enemy_x, enemy_y, angle, enemy_speed, enemy_image])
 
-            enemy_spawn_interval = max(100, 1000 - 1.1 ** (elapsed_time * (5/3)))
+            enemy_spawn_interval = max(100, 1000 - 1.05 ** (elapsed_time * (5/3)))
             enemy_spawn_timer = current_time
 
         if not game_over:
@@ -236,7 +281,7 @@ def initialize_game():
                 angle = enemy[2]
                 enemy[0] += enemy[3] * math.cos(angle)
                 enemy[1] += enemy[3] * math.sin(angle)
-                screen.blit(enemy_image, (enemy[0], enemy[1]))
+                screen.blit(enemy[4], (enemy[0], enemy[1]))
 
         elapsed_time = (pygame.time.get_ticks() - start_time) // 1000
         timer_text = font.render("Time: " + str(elapsed_time), True, (255, 255, 255))
@@ -260,6 +305,7 @@ def initialize_game():
                 enemy_rect = pygame.Rect(enemy[0], enemy[1], 48, 48)
                 if player_rect.colliderect(enemy_rect):
                     game_over = True
+                    pygame.mixer.music.stop()
                     break
 
     pygame.quit()
