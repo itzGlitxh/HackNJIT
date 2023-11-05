@@ -8,13 +8,16 @@ screen_info = pygame.display.Info()
 screen = pygame.display.set_mode((screen_info.current_w, screen_info.current_h), pygame.FULLSCREEN)
 pygame.display.set_caption("Cannon Game")
 
+background_image = pygame.image.load("background.png")
+background_image = pygame.transform.scale(background_image, (screen.get_width(), screen.get_height()))
+
 PLAYER_SPEED = 5
-CANNONBALL_SPEED = 8
-HEAVY_CANNONBALL_SPEED = 5
+CANNONBALL_SPEED = 12
+HEAVY_CANNONBALL_SPEED = 9
 GRAPE_SHOT_RADIUS = 100
-GRAPE_SHOT_COOLDOWN = 5000
-CANNONBALL_COOLDOWN = 1000
-HEAVY_CANNONBALL_COOLDOWN = 3000
+GRAPE_SHOT_COOLDOWN = 2500
+CANNONBALL_COOLDOWN = 500
+HEAVY_CANNONBALL_COOLDOWN = 1500
 ENEMY_SPEED = 3
 
 font = pygame.font.Font(None, 36)
@@ -22,8 +25,6 @@ timer_text = font.render("Time: 0", True, (255, 255, 255))
 timer_rect = timer_text.get_rect()
 timer_rect.centerx = screen.get_width() // 2
 timer_rect.top = 10
-
-GREY = (128, 128, 128)
 
 player_image = pygame.image.load("player.png")
 player_image = pygame.transform.scale(player_image, (64, 64))
@@ -38,7 +39,6 @@ player_y = screen.get_height() // 2 - 16
 
 cannonballs = []
 heavy_cannonballs = []
-heavy_cannonball_lifetime = 5000
 heavy_cannonball_timers = []
 enemies = []
 grapeshot_cooldown = 0
@@ -54,7 +54,7 @@ running = True
 timer = 0
 
 while running:
-    screen.fill(GREY)
+    screen.blit(background_image, (0, 0))
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -132,9 +132,12 @@ while running:
             enemy_y = random.randint(0, screen.get_height() - 64)
 
         angle = math.atan2(player_y - enemy_y, player_x - enemy_x)
-        enemies.append([enemy_x, enemy_y, angle])
 
-        enemy_spawn_interval = max(100, 1000 - 1.001**(timer*(5/3)))
+        enemy_speed = random.uniform(2, 4)
+
+        enemies.append([enemy_x, enemy_y, angle, enemy_speed])
+
+        enemy_spawn_interval = max(100, 1000 - 1.0005**(timer*(5/3)))
 
         enemy_spawn_timer = current_time
 
@@ -154,22 +157,28 @@ while running:
 
         for i, heavy_cannon in enumerate(heavy_cannonballs):
             angle = heavy_cannon[2]
+            heavy_cannon_x = heavy_cannon[0]
+            heavy_cannon_y = heavy_cannon[1]
+            heavy_cannon_radius = 80
+
             heavy_cannon[0] += HEAVY_CANNONBALL_SPEED * math.cos(angle)
             heavy_cannon[1] += HEAVY_CANNONBALL_SPEED * math.sin(angle)
             screen.blit(heavy_cannonball_image, (heavy_cannon[0], heavy_cannon[1]))
 
-            if current_time - heavy_cannonball_timers[i] >= heavy_cannonball_lifetime:
-                heavy_cannonballs.pop(i)
-                heavy_cannonball_timers.pop(i)
-            else:
-                for enemy in enemies:
-                    if math.hypot(heavy_cannon[0] - enemy[0], heavy_cannon[1] - enemy[1]) < 32:
-                        enemies.remove(enemy)
+            for enemy in enemies:
+                enemy_x = enemy[0]
+                enemy_y = enemy[1]
+                enemy_radius = 32
+
+                distance = math.hypot(heavy_cannon_x - enemy_x, heavy_cannon_y - enemy_y)
+
+                if distance < heavy_cannon_radius + enemy_radius:
+                    enemies.remove(enemy)
 
         for enemy in enemies:
             angle = enemy[2]
-            enemy[0] += ENEMY_SPEED * math.cos(angle)
-            enemy[1] += ENEMY_SPEED * math.sin(angle)
+            enemy[0] += enemy[3] * math.cos(angle)
+            enemy[1] += enemy[3] * math.sin(angle)
             screen.blit(enemy_image, (enemy[0], enemy[1]))
 
     timer += 1
@@ -196,7 +205,7 @@ while running:
 
 while running:
     if game_over:
-        screen.fill(GREY)
+        screen.blit(background_image, (0, 0))
         game_over_text = font.render("Game Over", True, (255, 0, 0))
         game_over_rect = game_over_text.get_rect(center=(screen.get_width() // 2, screen.get_height() // 2 - 50))
         screen.blit(game_over_text, game_over_rect)
